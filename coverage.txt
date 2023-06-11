@@ -1,0 +1,84 @@
+Sure, here is the revised tutorial:
+
+**1. Prerequisites:**
+
+- SSDT (SQL Server Data Tools): A modern development tool, downloadable for free, for building SQL Server relational databases, Azure SQL databases, Analysis Services (AS) data models, Integration Services (IS) packages, and Reporting Services (RS) reports. 
+- Visual Studio: A full-featured integrated development environment (IDE) for Android, iOS, Windows, web, and cloud. Note that the version of SSDT and Visual Studio must be compatible.
+- Java 17: Required for running SonarQube, a crucial tool we'll use for SQL code analysis. Download and install from https://adoptium.net/en-GB/temurin/releases/?version=17
+
+**2. Project setup:**
+
+Download tSQLt: 
+
+Download and extract tSQLt from the tSQLt website into the folder tSQLt. tSQLt is a database unit testing framework for SQL Server. It is compatible with SQL Server 2005 (Service Pack 2) and above. After downloading, you should unzip the file to a location on your hard drive. Execute the PrepareServer.sql file that comes with the download. This script automatically enables CLR and installs a server certificate that allows the installation of the tSQLt CLR.
+
+Download SQLCover:
+
+To use SQLCover, download the project from the SQLCover GitHub page. You can either clone the repository or download it as a ZIP file. Then, build the project using a .NET compiler to get the SQLCover.dll file. Copy the SQLCover.ps1 file provided as an example script on its GitHub page into your SQLCover folder. This script is used to generate code coverage results.
+
+Download sql source code:
+
+Download the source code from https://github.com/gretard/sonar-sql-plugin/tree/master/examples/1-tsql/src and save it in the src folder. This repository contains examples of how to use the SonarQube SQL Plugin.
+
+**3. Setup SonarQube for SQL:**
+
+Installing SonarQube from a zip file:
+
+- Download the SonarQube Community Edition zip file.
+- Unzip it in, for example, C:\sonarqube or /opt/sonarqube.
+- On Windows, execute: C:\sonarqube\bin\windows-x86-64\StartSonar.bat
+
+**4. SQL Docker setup:**
+
+- Start an instance of SQL Server 2017 from a Docker image. We're using Docker to easily deploy an isolated SQL Server instance for testing.
+- Set the port for the SQL Server instance to 1433, the default port for SQL Server.
+- The password for the 'sa' account should be 'sql@dmin'.
+
+**5. TSQLT setup:**
+
+- Set up tSQLt with the SQL container as a target. The SQL Server instance should be referred to as 'localhost'.
+- Run the following SQLCMD commands to prepare the server and run the tSQLt example tests:
+    - Sqlcmd -S localhost -U sa -P sql@dmin -i "tsqlt\PrepareServer.sql"
+    - Sqlcmd -S localhost -U sa -P sql@dmin -i "tsqlt\Example.sql"
+
+**6. Database setup:**
+
+- Set up the database where the tests will be run by running the following SQLCMD command:
+    - Sqlcmd -S localhost -U sa -P sql@dmin -Q "Create Database ExampleDatabase"
+- Install tSQLt in the new database by running the following SQLCMD command:
+    - Sqlcmd -S localhost -U sa -P sql@dmin -d ExampleDatabase -i "tsqlt\
+
+**7. Deploy Database
+
+:**
+
+- Deploy the SQL objects by using SSDT. In SQL Server Object Explorer, under the SQL Server node, a new node named Local appears. This is the local database instance. Press F5 to debug the database project. SSDT will use the local database server instance for debugging database projects.
+
+**8. SQL Docker setup (continued):**
+
+- Run the following commands to pull the Docker image and run SQL Server 2017:
+    - `docker pull microsoft/mssql-server-linux:2017-latest`
+    - `docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=<sa password>' -e 'MSSQL_PID=Developer' -p 1433:1433 -v mssqldata:/var/opt/mssql --name sql1 -d microsoft/mssql-server-linux:2017-latest`
+- Connect to SQL Server using sqlcmd inside the Docker container:
+    - `docker exec -it sql1 "bash"`
+    - `/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P '<sa password>'`.
+
+**9. Run tests:**
+
+- With the tools and environment setup, you can now run the tSQLt tests and generate coverage reports. Run the following PowerShell commands:
+    - `. "SQLCover\SQLCover.ps1"` - Loads the functions in the SQLCover.ps1 script into the current PowerShell session.
+    - `$results = Get-CoverTSql  "SQLCover\SQLCover.dll"  "server=localhost;initial catalog=ExampleDatabase;User ID='sa';Password='sql@dmin'" "ExampleDatabase " "exec tSQLt.RunAll"` - Runs the tests and captures the results.
+    - `New-Item -ItemType Directory -Force -Path "build\sqlcoverresults"` - Creates a directory for the coverage results.
+    - `Export-OpenXml $results "build\sqlcoverresults"` - Exports the test coverage results.
+
+**10. Build the project:**
+
+- Build the SQL project by running the following MSBuild command in your command line:
+    - `msbuild src\ExampleDatabase.sqlproj /t:build /p:RunSqlCodeAnalysis=True`
+
+**11. Run Sonar scanner:**
+
+- Run the Sonar scanner to analyze the SQL code and report the results to SonarQube. You can do this by running the following command:
+    - `sonar-scanner\sonar-scanner-4.8.02856\bin\sonar-scanner.bat -D sonar.projectKey=project.name -D host.url="http://localhost:9000" -D sonar.sources=src -D sonar.exclusions=**/bin/**/*.*,**/obj/**/*.*,**/*.sqlproj -D sonar.login=TOKEN -D sonar.tsqlt.sqlcover.report=build\sqlcoverresults\Coverage.opencoverxml`
+
+In the Sonar scanner command, replace 'TOKEN' with your SonarQube authentication token. You will need to generate or find this in your SonarQube server.
